@@ -167,6 +167,8 @@
     <ClInclude Include="Framework\constants.h" />
     <ClInclude Include="Framework\descriptor_sets.h" />
     <ClInclude Include="Framework\device.h" />
+    <ClInclude Include="Framework\stb_image.h" />
+    <ClInclude Include="Framework\texture.h" />
     <ClInclude Include="Framework\vulkan_instance.h" />
     <ClInclude Include="Framework\physical_device.h" />
     <ClInclude Include="Framework\enum.h" />
@@ -175,6 +177,9 @@
     <ClInclude Include="Framework\shader.h" />
     <ClInclude Include="Framework\swapchain.h" />
     <ClInclude Include="Framework\window.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\statue.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
