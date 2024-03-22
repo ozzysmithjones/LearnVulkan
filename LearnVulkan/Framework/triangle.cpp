@@ -18,6 +18,7 @@
 #include "error.h"
 #include "buffer.h"
 #include "descriptor_sets.h"
+#include "texture.h"
 
 /*
 static const std::vector<Vertex> vertices = {
@@ -28,11 +29,11 @@ static const std::vector<Vertex> vertices = {
 */
 
 
-static const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+const std::vector<Vertex> vertices = {
+	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
 static const std::vector<uint16_t> indices = {
@@ -40,7 +41,8 @@ static const std::vector<uint16_t> indices = {
 };
 
 
-void update(UniformBuffer& uniform_buffer, VkExtent2D swapchain_extent) {
+
+static void update(UniformBuffer& uniform_buffer, VkExtent2D swapchain_extent) {
 
 	UniformBufferContent uniform_buffer_content{};
 	static auto startTime = std::chrono::high_resolution_clock::now();
@@ -141,15 +143,20 @@ int main() {
 	VkPipeline pipeline = create_render_pipeline(device, render_pass, pipeline_resources.pipeline_layout, std::move(shader_by_stage), swapchain_images.extent);
 	VkCommandPool command_pool = create_command_pool(device, device_details.queue_family_index_by_feature[FEATURE_GRAPHICS], true, false);
 
+	Texture texture = create_texture(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], "textures/texture.jpg");
+	VkSampler sampler = create_sampler(device, device_details.max_anistropy_samples);
+
 	VkDescriptorPool descriptor_pool = create_descriptor_pool(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, false, MAX_FRAMES_IN_FLIGHT, MAX_FRAMES_IN_FLIGHT);
 	//Multiple frames can be queued up while we wait asynchronously for the GPU to do the render commands. 
 	FrameExecutions frame_executions = create_frame_executions(device, command_pool);
 	FrameUniformBuffers frame_uniform_buffers = create_frame_uniform_buffers(device, physical_device);
-	FrameDescriptorSets frame_descriptor_sets = create_frame_descriptor_sets(device, descriptor_pool, pipeline_resources.descriptor_set_layout, frame_uniform_buffers);
+	FrameDescriptorSets frame_descriptor_sets = create_frame_descriptor_sets(device, descriptor_pool, pipeline_resources.descriptor_set_layout, frame_uniform_buffers, texture.view, sampler);
 
 	auto [gpu_vertex_buffer, gpu_vertex_memory] = create_gpu_buffer<Vertex>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 0, vertices);
 	auto [gpu_index_buffer, gpu_index_memory] = create_gpu_buffer<uint16_t>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 0, indices);
 
+
+	// game loop:
 
 	std::size_t current_executing_frame = 0;
 	while (!glfwWindowShouldClose(window)) {
@@ -210,6 +217,10 @@ int main() {
 	}
 
 	vkDeviceWaitIdle(device);
+	vkDestroySampler(device, sampler, nullptr);
+	vkDestroyImageView(device, texture.view, nullptr);
+	vkFreeMemory(device, texture.memory, nullptr);
+	vkDestroyImage(device, texture.image, nullptr);
 	vkFreeMemory(device, gpu_index_memory, nullptr);
 	vkDestroyBuffer(device, gpu_index_buffer, nullptr);
 	vkFreeMemory(device, gpu_vertex_memory, nullptr);

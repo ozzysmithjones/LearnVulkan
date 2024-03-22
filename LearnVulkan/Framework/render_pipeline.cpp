@@ -13,8 +13,8 @@ static VkVertexInputBindingDescription get_vertex_binding_description() {
 }
 
 // Describes individual members of the struct to vulkan. The location specifies the id from which the value can be referemced oin a vertex shader.
-static std::array<VkVertexInputAttributeDescription, 2> get_vertex_attribute_descriptions() {
-	std::array<VkVertexInputAttributeDescription, 2> attribute_descriptions{};
+static std::array<VkVertexInputAttributeDescription, 3> get_vertex_attribute_descriptions() {
+	std::array<VkVertexInputAttributeDescription, 3> attribute_descriptions{};
 	attribute_descriptions[0].binding = 0;
 	attribute_descriptions[0].location = 0;
 	attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -24,6 +24,11 @@ static std::array<VkVertexInputAttributeDescription, 2> get_vertex_attribute_des
 	attribute_descriptions[1].location = 1;
 	attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attribute_descriptions[1].offset = offsetof(Vertex, color);
+
+	attribute_descriptions[2].binding = 0;
+	attribute_descriptions[2].location = 2;
+	attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attribute_descriptions[2].offset = offsetof(Vertex, uv);
 
 	return attribute_descriptions;
 }
@@ -38,6 +43,8 @@ PipelineResources create_pipeline_resources(VkDevice device)
 	// A descriptor will occupy a binding. There can be multiple descriptor sets with the same binding numbers so long as they have different usages when bound at the same time. 
 	// For example, a descriptor set bound for graphics and a descriptor set bound for compute shading can share the same binding numbers for the descriptors within them.
 
+
+
 	VkDescriptorSetLayoutBinding ubo_layout_binding{};
 	ubo_layout_binding.binding = 0;
 	ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -51,15 +58,27 @@ PipelineResources create_pipeline_resources(VkDevice device)
 	// Not relevant for buffers, but useful for image sampling related stuff.
 	ubo_layout_binding.pImmutableSamplers = nullptr; // Optional
 
+
+	// attach sampler to be used during fragment shading.
+
+	VkDescriptorSetLayoutBinding sampler_layout_binding{};
+	sampler_layout_binding.binding = 1;
+	sampler_layout_binding.descriptorCount = 1;
+	sampler_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	sampler_layout_binding.pImmutableSamplers = VK_NULL_HANDLE;
+	sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+
 	// A descriptor set layout is essentially a flyweight-class detailing the format that the descriptor set will be in. It contains an array of bindings which detail the format of each descriptor
 	// and the binding it will have. This is like specifying an interface - i.e the contract agreed upon by the graphics pipeline and our CPU code of what the descriptors will look like. 
 	// This information must be provided up front in Vulkan, and this descriptor layout must be used to initialise the render pipeline and bind the descriptors when they are used. 
 	// Creation of descriptors is also based from this layout. Multiple descriptor sets can use the same descriptor layout. 
 
+	std::array<VkDescriptorSetLayoutBinding, 2> descriptor_layout_bindings = { ubo_layout_binding, sampler_layout_binding };
 	VkDescriptorSetLayoutCreateInfo descriptor_layout_info{};
 	descriptor_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptor_layout_info.bindingCount = 1;
-	descriptor_layout_info.pBindings = &ubo_layout_binding;
+	descriptor_layout_info.bindingCount = descriptor_layout_bindings.size();
+	descriptor_layout_info.pBindings = descriptor_layout_bindings.data();
 
 	if (vkCreateDescriptorSetLayout(device, &descriptor_layout_info, nullptr, &pipeline_resources.descriptor_set_layout) != VK_SUCCESS) {
 		log_error("Failed to create descriptor set layout!");
@@ -168,7 +187,7 @@ struct InputGeometryInfo {
 	VkPipelineInputAssemblyStateCreateInfo primitive_layout{};
 	VkPipelineVertexInputStateCreateInfo vertex_layout{};
 	VkVertexInputBindingDescription vertex_binding_description{};
-	std::array<VkVertexInputAttributeDescription, 2> vertex_attribute_descriptions{};
+	std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_descriptions{};
 };
 
 static InputGeometryInfo create_input_geometry_info() {

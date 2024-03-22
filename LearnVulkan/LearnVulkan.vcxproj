@@ -147,11 +147,13 @@
     <ClCompile Include="Framework\command.cpp" />
     <ClCompile Include="Framework\descriptor_sets.cpp" />
     <ClCompile Include="Framework\device.cpp" />
+    <ClCompile Include="Framework\file.cpp" />
     <ClCompile Include="Framework\physical_device.cpp" />
     <ClCompile Include="Framework\enum.cpp" />
     <ClCompile Include="Framework\render_pipeline.cpp" />
     <ClCompile Include="Framework\shader.cpp" />
     <ClCompile Include="Framework\swapchain.cpp" />
+    <ClCompile Include="Framework\texture.cpp" />
     <ClCompile Include="Framework\triangle.cpp" />
     <ClCompile Include="Framework\vulkan_instance.cpp" />
     <ClCompile Include="Framework\window.cpp" />
@@ -167,6 +169,7 @@
     <ClInclude Include="Framework\constants.h" />
     <ClInclude Include="Framework\descriptor_sets.h" />
     <ClInclude Include="Framework\device.h" />
+    <ClInclude Include="Framework\file.h" />
     <ClInclude Include="Framework\stb_image.h" />
     <ClInclude Include="Framework\texture.h" />
     <ClInclude Include="Framework\vulkan_instance.h" />

@@ -120,6 +120,19 @@ static [[nodiscard]] bool try_get_queue_family_details(VkSurfaceKHR window_surfa
 	return found_feature_count == FEATURE_COUNT;
 }
 
+static bool try_get_required_anistropy_details(VkPhysicalDevice physical_device, uint32_t& out_max_anistropy_samples) {
+	VkPhysicalDeviceFeatures features;
+	vkGetPhysicalDeviceFeatures(physical_device, &features);
+	if (!features.samplerAnisotropy) {
+		return false;
+	}
+
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(physical_device, &properties);
+	out_max_anistropy_samples = properties.limits.maxSamplerAnisotropy;
+	return true;
+}
+
 static [[nodiscard]] bool try_get_required_details(VkSurfaceKHR window_surface, VkPhysicalDevice physical_device, DeviceDetails& out_device_details) {
 
 	if (!has_required_extensions(physical_device, required_device_extensions)) {
@@ -131,6 +144,10 @@ static [[nodiscard]] bool try_get_required_details(VkSurfaceKHR window_surface, 
 	}
 
 	if (!try_get_queue_family_details(window_surface, physical_device, out_device_details.queue_family_index_by_feature)) {
+		return false;
+	}
+
+	if (!try_get_required_anistropy_details(physical_device, out_device_details.max_anistropy_samples)) {
 		return false;
 	}
 

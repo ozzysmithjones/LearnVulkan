@@ -22,6 +22,7 @@ struct DeviceDetails {
 	VkPhysicalDeviceProperties properties{};
 	SwapchainDetails swapchain{};
 	QueueFamilyIndexByFeature queue_family_index_by_feature{};
+	uint32_t max_anistropy_samples { 0 };
 };
 
 [[nodiscard]] VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR window_surface, DeviceDetails& out_details);

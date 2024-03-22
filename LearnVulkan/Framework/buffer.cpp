@@ -175,7 +175,9 @@ static void submit_buffer_copy_command(VkDevice device, VkCommandPool command_po
     vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
 }
 
-static void submit_image_transition_command(VkDevice device, VkCommandPool command_pool, VkQueue command_queue, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) {
+
+
+static void submit_image_transition_command(VkDevice device, VkCommandPool command_pool, VkQueue command_queue, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, VkAccessFlags available_memory, VkAccessFlags visible_memory, VkPipelineStageFlags dependent_stages, VkPipelineStageFlags output_stages) {
     VkCommandBuffer command_buffer = begin_single_time_commands(device, command_pool);
 
     VkImageMemoryBarrier barrier{};
@@ -198,19 +200,31 @@ static void submit_image_transition_command(VkDevice device, VkCommandPool comma
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
 
+    // The src mask specifies the memory that needs to be made available for the later commands to use.
+    // This memory can only be made available from the specific stages specified in the src stages flags.
+    // This is essentially specifying the data that we need to be moved at certain points to the L2 cache.
+    barrier.srcAccessMask = available_memory;
 
-    // The access masks specify 
-    barrier.srcAccessMask = 0; // TODO
-    barrier.dstAccessMask = 0; // TODO
+    // The dst mask specifies the memory that needs to be made visible from the available memory for later commands to use.
+    // It's possible to make memory available but not visible. 
+    // This is essentially specifying the data that we need in the L1 cache for direct reads/writes.
+    barrier.dstAccessMask = visible_memory;
 
+    // ^ The problem that these flags solve is keeping data coherent across GPU caches. Once execution of previous stages has completed, there can still be information in the L1 cache
+    // which needs to be moved back to the L2 cache to be redistributed for other work. These flags also come in READ and WRITE forms, to inform the Vulkan API of the types of operations performed
+    // with the memory. For example, we could have some memory which is written to in the source and read from the destination. These READ/WRITE forms do not appear to hold significant purpose appart from 
+    // being more explicit to the Vulkan API so it can make optimisations behind the scenes. 
 
-    // A pipeline barrier is similar to a traffic light: It prevents certain later commands from executing until certain previous commands finish executinG.
+    // A pipeline barrier is similar to a traffic light: It prevents certain later commands from executing until certain previous commands finish executing.
     // Note that the order of this command is relevant. That is, if you re-order this function call there will be different commands before or after this which MIGHT be affected. 
-    // Commands that are dependended on can be set with the src stages mask
+    // The dst mask specifies the furthest stages the later commands can go before having to wait for the previous commands to reach a certain stage, 
+    // The src mask specifies the certain stages that the dst mask must wait on before the commands can continue. 
+    // This is essentially informing later commands to wait on certain stages until earlier commands reach certain stages and necessary data arrives. 
     vkCmdPipelineBarrier(
         command_buffer,
-        0 /* Dependencies (stages) */, 0 /* stages that depend on the dependencies. */,
-        0 /*0 or VK_DEPENDECY_BY_REGION_BIT*/,
+        dependent_stages,
+        output_stages,
+        0, /*0 or VK_DEPENDECY_BY_REGION_BIT*/
         0, nullptr,
         0, nullptr,
         1, &barrier
@@ -396,9 +410,11 @@ std::tuple<VkImage, VkDeviceMemory> create_gpu_image(VkDevice device, VkPhysical
     auto [buffer, buffer_memory] = create_buffer(device, physical_device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, data);
     auto [image, image_memory] = create_image(device, physical_device, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, format, tiling, width, height);
 
-    submit_image_transition_command(device, command_pool, command_queue, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    submit_image_transition_command(device, command_pool, command_queue, image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
     submit_buffer_to_image_command(device, command_pool, command_queue, buffer, image, width, height);
-    submit_image_transition_command(device, command_pool, command_queue, image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    submit_image_transition_command(device, command_pool, command_queue, image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    vkFreeMemory(device, buffer_memory, nullptr);
+    vkDestroyBuffer(device, buffer, nullptr);
 
     return { image, image_memory };
 }
