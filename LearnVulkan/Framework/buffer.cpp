@@ -418,3 +418,43 @@ std::tuple<VkImage, VkDeviceMemory> create_gpu_image(VkDevice device, VkPhysical
 
     return { image, image_memory };
 }
+
+VkImageView create_image_view(VkDevice device, VkImage image, VkFormat interpret_format, VkImageAspectFlags interpret_aspect)
+{
+    VkImageView image_view{};
+    VkImageViewCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    create_info.image = image;
+
+    // Images in Vulkan can contain multiple layers (similar to layers in photoshop).
+    // The view type specifies how the image view should interpret a region of the the image. 
+    // 1D indicates that it should interpret the pixels as being in one long line.
+    // 2D indicates that it should interpret the pixels as a two dimensional array.
+    // 3D indicates that it should interpret the pixels as a three dimensional array.
+    create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+
+    // The format is how the colours are formatted on the image. How much memory to use for each pixel. 
+    create_info.format = interpret_format;
+
+    // Component swizzle is an option to rebind colour outputs. For example, using red for all channels.
+    create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    // The subresource range specifies the number of layers that the image view should interpret (if interpreting layers)
+    // and if we should be using any mip-mapping levels when we use the image.
+    // Mip-mapping allows sampling the image at different resolutions depending upon certain conditions like how "far away" we are drawing it. 
+
+    create_info.subresourceRange.aspectMask = interpret_aspect;
+    create_info.subresourceRange.baseMipLevel = 0;
+    create_info.subresourceRange.levelCount = 1;
+    create_info.subresourceRange.baseArrayLayer = 0;
+    create_info.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(device, &create_info, nullptr, &image_view) != VK_SUCCESS) {
+        log_error("Failed to create image view ");
+    }
+
+    return image_view;
+}

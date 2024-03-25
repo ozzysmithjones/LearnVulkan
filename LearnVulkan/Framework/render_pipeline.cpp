@@ -17,7 +17,7 @@ static std::array<VkVertexInputAttributeDescription, 3> get_vertex_attribute_des
 	std::array<VkVertexInputAttributeDescription, 3> attribute_descriptions{};
 	attribute_descriptions[0].binding = 0;
 	attribute_descriptions[0].location = 0;
-	attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+	attribute_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 	attribute_descriptions[0].offset = offsetof(Vertex, pos);
 
 	attribute_descriptions[1].binding = 0;
@@ -100,7 +100,7 @@ PipelineResources create_pipeline_resources(VkDevice device)
 	return pipeline_resources;
 }
 
-VkRenderPass create_render_pass(VkDevice device, VkFormat swapchain_format)
+VkRenderPass create_render_pass(VkDevice device, VkFormat swapchain_format, VkFormat depth_buffer_format)
 {
 	VkRenderPass render_pass;
 	// An attachment is a description of a resource used during rendering. 
@@ -122,34 +122,56 @@ VkRenderPass create_render_pass(VkDevice device, VkFormat swapchain_format)
 	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+
 	// An attachment reference represents a reference to an attachment at a specific render sub-pass. 
-	// The attachment might be in an initial format but it can go under many transformations as it goes through the rendering process.
+	// The attachment might be in an initial layout but it can go under many transformations as it goes through the rendering process.
 	// In this case, we specify that when the attachment is referenced in the subpass it should be converted to VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL format
 	// This is to make writing color more optimal.
-	VkAttachmentReference color_attachment_ref{};
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference color_attachments_ref{};
+	color_attachments_ref.attachment = 0;
+	color_attachments_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+
+	// Depth attachment 
+
+	VkAttachmentDescription depth_attachment{};
+	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depth_attachment.format = depth_buffer_format;
+	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depth_attachments_ref{};
+	depth_attachments_ref.attachment = 1;
+	depth_attachments_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 
 	// Here we create the subpass, we must specifically notify Vulkan that it is a graphics subpass to use the render pipeline state. Vulkan also supports compute subpasses. 
+	// This subpass references both the depth and color attachments tied to the render pass.
 	VkSubpassDescription subpass{};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
+	subpass.pColorAttachments = &color_attachments_ref;
+	subpass.pDepthStencilAttachment = &depth_attachments_ref;
 
 	// specifies a dependency between two subpasses. 
 	// Wait until the color attachment stage before we can start the main render sub-pass for the triangle.
 	VkSubpassDependency dependency{};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+	std::array<VkAttachmentDescription, 2> attachments{color_attachment, depth_attachment};
 	VkRenderPassCreateInfo render_pass_info{};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	render_pass_info.attachmentCount = 1;
-	render_pass_info.pAttachments = &color_attachment;
+	render_pass_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+	render_pass_info.pAttachments = attachments.data();
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
 	render_pass_info.dependencyCount = 1;
@@ -353,6 +375,28 @@ VkPipeline create_render_pipeline(VkDevice device, VkRenderPass render_pass, VkP
 	dynamic_state_info.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
 	dynamic_state_info.pDynamicStates = dynamic_states.data();
 
+	VkPipelineDepthStencilStateCreateInfo depth_stencil_info{};
+	depth_stencil_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+
+	// Enable testing depth before writing to the color output.
+	depth_stencil_info.depthTestEnable = VK_TRUE;
+
+	// Enable updating depth buffer after writing to color output.
+	depth_stencil_info.depthWriteEnable = VK_TRUE;
+	// Closer = less.
+	depth_stencil_info.depthCompareOp = VK_COMPARE_OP_LESS;
+
+	// Optional feature to only enable fragments that fall within a certain depth bounds.
+	// Disabled for now.
+	depth_stencil_info.depthBoundsTestEnable = VK_FALSE;
+	depth_stencil_info.minDepthBounds = 0.0f; // Optional
+	depth_stencil_info.maxDepthBounds = 1.0f; // Optional
+
+	// extra stencil buffer operations, not used.
+	depth_stencil_info.stencilTestEnable = VK_FALSE;
+	depth_stencil_info.front = {}; // Optional
+	depth_stencil_info.back = {}; // Optional
+
 	VkGraphicsPipelineCreateInfo pipeline_info{};
 	pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_info.stageCount = static_cast<uint32_t>(shader_stage_infos.size());
@@ -362,7 +406,7 @@ VkPipeline create_render_pipeline(VkDevice device, VkRenderPass render_pass, VkP
 	pipeline_info.pViewportState = &viewport_info.viewport_create_info;
 	pipeline_info.pRasterizationState = &color_output_info.rasterizer_info;
 	pipeline_info.pMultisampleState = &color_output_info.multisampling_info;
-	pipeline_info.pDepthStencilState = nullptr; // Optional
+	pipeline_info.pDepthStencilState = &depth_stencil_info;
 	pipeline_info.pColorBlendState = &color_output_info.color_blend_info;
 	pipeline_info.pDynamicState = &dynamic_state_info;
 	pipeline_info.layout = pipeline_resource_layout;

@@ -16,5 +16,5 @@ struct RenderTargets {
 };
 
 VkSwapchainKHR create_swapchain(GLFWwindow* window, VkSurfaceKHR window_surface, VkDevice device, std::size_t graphics_family_index, std::size_t present_family_index, const SwapchainDetails& swapchain_details, SwapchainImages& out_swapchain_images);
-RenderTargets create_render_targets(VkDevice device, VkRenderPass render_pass, VkSwapchainKHR swapchain, const SwapchainImages& swapchain_images);
+RenderTargets create_render_targets(VkDevice device, VkRenderPass render_pass, VkSwapchainKHR swapchain, const SwapchainImages& swapchain_images, VkImageView depth_buffer_view);
 

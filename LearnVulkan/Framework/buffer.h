@@ -37,10 +37,8 @@ constexpr std::tuple<VkBuffer, VkDeviceMemory> create_gpu_buffer(VkDevice device
 }
 
 FrameUniformBuffers create_frame_uniform_buffers(VkDevice device, VkPhysicalDevice physical_device);
-
-
-
-
 std::tuple<VkImage, VkDeviceMemory> create_image(VkDevice device, VkPhysicalDevice physical_device, VkImageUsageFlags usage_flags, VkMemoryPropertyFlags memory_flags, VkFormat format, VkImageTiling tiling, uint32_t width, uint32_t height, std::span<const uint8_t> data);
 std::tuple<VkImage, VkDeviceMemory> create_image(VkDevice device, VkPhysicalDevice physical_device, VkImageUsageFlags usage_flags, VkMemoryPropertyFlags memory_flags, VkFormat format, VkImageTiling tiling, uint32_t width, uint32_t height);
 std::tuple<VkImage, VkDeviceMemory> create_gpu_image(VkDevice device, VkPhysicalDevice physical_device, VkCommandPool command_pool, VkQueue command_queue, VkFormat format, VkImageTiling tiling, uint32_t width, uint32_t height, std::span<const uint8_t> data);
+
+VkImageView create_image_view(VkDevice device, VkImage image, VkFormat interpret_format, VkImageAspectFlags interpret_aspect);

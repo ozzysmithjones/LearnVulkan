@@ -154,13 +154,14 @@ static std::vector<VkImageView> create_swapchain_image_views(VkDevice device, st
 	return image_views;
 }
 
-static std::vector<VkFramebuffer> create_framebuffers(VkDevice device, VkRenderPass render_pass, VkExtent2D extent, std::span<const VkImageView> image_views) {
+static std::vector<VkFramebuffer> create_framebuffers(VkDevice device, VkRenderPass render_pass, VkExtent2D extent, std::span<const VkImageView> image_views, VkImageView depth_buffer_view) {
 
 	std::vector<VkFramebuffer> framebuffers(image_views.size());
 
 	for (std::size_t i = 0; i < framebuffers.size(); ++i) {
-		std::array<VkImageView, 1> attachments{
-			image_views[i]
+		std::array<VkImageView, 2> attachments{
+			image_views[i],
+			depth_buffer_view,
 		};
 
 		// A frame buffer is a set of attachments, this time by direct reference (not just a description).
@@ -185,11 +186,11 @@ static std::vector<VkFramebuffer> create_framebuffers(VkDevice device, VkRenderP
 	return framebuffers;
 }
 
-RenderTargets create_render_targets(VkDevice device, VkRenderPass render_pass, VkSwapchainKHR swapchain, const SwapchainImages& swapchain_images)
+RenderTargets create_render_targets(VkDevice device, VkRenderPass render_pass, VkSwapchainKHR swapchain, const SwapchainImages& swapchain_images, VkImageView depth_buffer_view)
 {
 	RenderTargets render_targets;
 	render_targets.image_views = create_swapchain_image_views(device, swapchain_images.images, swapchain_images.format);
-	render_targets.framebuffers = create_framebuffers(device, render_pass, swapchain_images.extent, render_targets.image_views);
+	render_targets.framebuffers = create_framebuffers(device, render_pass, swapchain_images.extent, render_targets.image_views, depth_buffer_view);
 	return render_targets;
 }
 

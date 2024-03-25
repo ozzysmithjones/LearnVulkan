@@ -19,6 +19,7 @@
 #include "buffer.h"
 #include "descriptor_sets.h"
 #include "texture.h"
+#include "depth.h"
 
 /*
 static const std::vector<Vertex> vertices = {
@@ -30,14 +31,20 @@ static const std::vector<Vertex> vertices = {
 
 
 const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+	 {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+	{ {-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+	{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 };
 
 static const std::vector<uint16_t> indices = {
-	0, 1, 2, 2, 3, 0
+	0, 1, 2, 2, 3, 0,
+	4, 5, 6, 6, 7, 4,
 };
 
 
@@ -80,9 +87,11 @@ void record_render_commands(VkPipeline render_pipeline, VkRenderPass render_pass
 	render_pass_info.renderArea.offset = { 0, 0 };
 	render_pass_info.renderArea.extent = swapchain_extent;
 
-	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-	render_pass_info.clearValueCount = 1;
-	render_pass_info.pClearValues = &clearColor;
+	std::array<VkClearValue, 2> clear_values{};
+	clear_values[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+	clear_values[1].depthStencil = { 1.0f, 0 };
+	render_pass_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+	render_pass_info.pClearValues = clear_values.data();
 
 	// Begin render pass with framebuffer data specified in render pass info, along with the specified load and store OPs. 
 	// The third parameter is to notify if we are executing all of the rendering commands from the primary command buffer or if we are using secondary command buffers too.
@@ -136,12 +145,15 @@ int main() {
 	VkPhysicalDevice physical_device = pick_physical_device(instance, window_surface, device_details);
 	VkDevice device = create_device(physical_device, device_details.queue_family_index_by_feature, queue_by_feature);
 	VkSwapchainKHR swapchain = create_swapchain(window, window_surface, device, device_details.queue_family_index_by_feature[FEATURE_GRAPHICS], device_details.queue_family_index_by_feature[FEATURE_PRESENT], device_details.swapchain, swapchain_images);
-	VkRenderPass render_pass = create_render_pass(device, swapchain_images.format);
-	RenderTargets render_targets = create_render_targets(device, render_pass, swapchain, swapchain_images);
+	DepthBuffer depth_buffer = create_depth_buffer(device, physical_device, swapchain_images.extent.width, swapchain_images.extent.height);
+	VkRenderPass render_pass = create_render_pass(device, swapchain_images.format, depth_buffer.format);
+	RenderTargets render_targets = create_render_targets(device, render_pass, swapchain, swapchain_images, depth_buffer.view);
 	ShaderByStage shader_by_stage = create_shaders(device, "vert.spv", "frag.spv");
 	PipelineResources pipeline_resources = create_pipeline_resources(device);
 	VkPipeline pipeline = create_render_pipeline(device, render_pass, pipeline_resources.pipeline_layout, std::move(shader_by_stage), swapchain_images.extent);
 	VkCommandPool command_pool = create_command_pool(device, device_details.queue_family_index_by_feature[FEATURE_GRAPHICS], true, false);
+
+	//auto [depth_image, depth_memory] = create_ima
 
 	Texture texture = create_texture(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], "textures/texture.jpg");
 	VkSampler sampler = create_sampler(device, device_details.max_anistropy_samples);
@@ -154,7 +166,6 @@ int main() {
 
 	auto [gpu_vertex_buffer, gpu_vertex_memory] = create_gpu_buffer<Vertex>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 0, vertices);
 	auto [gpu_index_buffer, gpu_index_memory] = create_gpu_buffer<uint16_t>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 0, indices);
-
 
 	// game loop:
 
@@ -221,6 +232,11 @@ int main() {
 	vkDestroyImageView(device, texture.view, nullptr);
 	vkFreeMemory(device, texture.memory, nullptr);
 	vkDestroyImage(device, texture.image, nullptr);
+
+	vkFreeMemory(device, depth_buffer.memory, nullptr);
+	vkDestroyImageView(device, depth_buffer.view, nullptr);
+	vkDestroyImage(device, depth_buffer.image, nullptr);
+
 	vkFreeMemory(device, gpu_index_memory, nullptr);
 	vkDestroyBuffer(device, gpu_index_buffer, nullptr);
 	vkFreeMemory(device, gpu_vertex_memory, nullptr);
