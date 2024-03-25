@@ -7,6 +7,9 @@
 #include <chrono>
 
 #include <vulkan/vulkan.h>
+
+
+
 #include "window.h"
 #include "vulkan_instance.h"
 #include "physical_device.h"
@@ -29,7 +32,7 @@ static const std::vector<Vertex> vertices = {
 };
 */
 
-
+/*
 const std::vector<Vertex> vertices = {
 	 {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
 	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
@@ -46,8 +49,10 @@ static const std::vector<uint16_t> indices = {
 	0, 1, 2, 2, 3, 0,
 	4, 5, 6, 6, 7, 4,
 };
+*/
 
-
+const char* model_path = "meshes/viking_room.obj";
+const char* texture_path = "textures/viking_room.png";
 
 static void update(UniformBuffer& uniform_buffer, VkExtent2D swapchain_extent) {
 
@@ -57,8 +62,8 @@ static void update(UniformBuffer& uniform_buffer, VkExtent2D swapchain_extent) {
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 	uniform_buffer_content.transform =
 		glm::perspective(glm::radians(45.0f), swapchain_extent.width / (float)swapchain_extent.height, 0.1f, 10.0f) *
-		glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
-		glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)) *
+		glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
 	memcpy(uniform_buffer.mapped_region, &uniform_buffer_content, sizeof(UniformBufferContent));
 }
@@ -120,7 +125,7 @@ void record_render_commands(VkPipeline render_pipeline, VkRenderPass render_pass
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertexBuffers, offsets);
 
 
-	vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 	vkCmdDrawIndexed(command_buffer, static_cast<uint32_t>(index_count), 1, 0, 0, 0);
 
@@ -135,11 +140,13 @@ void record_render_commands(VkPipeline render_pipeline, VkRenderPass render_pass
 
 int main() {
 
+	Mesh mesh = load_mesh(model_path).value();
+
 	DeviceDetails device_details{};
 	QueueByFeature queue_by_feature{};
 	SwapchainImages swapchain_images{};
 
-	GLFWwindow* window = create_window(600, 400, "Hello triangle");
+	GLFWwindow* window = create_window(1200, 800, "Hello mesh");
 	VkInstance instance = create_vulkan_instance();
 	VkSurfaceKHR window_surface = create_window_surface(instance, window);
 	VkPhysicalDevice physical_device = pick_physical_device(instance, window_surface, device_details);
@@ -150,22 +157,23 @@ int main() {
 	RenderTargets render_targets = create_render_targets(device, render_pass, swapchain, swapchain_images, depth_buffer.view);
 	ShaderByStage shader_by_stage = create_shaders(device, "vert.spv", "frag.spv");
 	PipelineResources pipeline_resources = create_pipeline_resources(device);
-	VkPipeline pipeline = create_render_pipeline(device, render_pass, pipeline_resources.pipeline_layout, std::move(shader_by_stage), swapchain_images.extent);
+	VkPipeline pipeline = create_render_pipeline(device, render_pass, pipeline_resources.pipeline_layout, shader_by_stage, swapchain_images.extent);
 	VkCommandPool command_pool = create_command_pool(device, device_details.queue_family_index_by_feature[FEATURE_GRAPHICS], true, false);
 
-	//auto [depth_image, depth_memory] = create_ima
-
-	Texture texture = create_texture(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], "textures/texture.jpg");
+	Texture texture = create_texture(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], texture_path);
 	VkSampler sampler = create_sampler(device, device_details.max_anistropy_samples);
 
 	VkDescriptorPool descriptor_pool = create_descriptor_pool(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, false, MAX_FRAMES_IN_FLIGHT, MAX_FRAMES_IN_FLIGHT);
+
 	//Multiple frames can be queued up while we wait asynchronously for the GPU to do the render commands. 
 	FrameExecutions frame_executions = create_frame_executions(device, command_pool);
 	FrameUniformBuffers frame_uniform_buffers = create_frame_uniform_buffers(device, physical_device);
 	FrameDescriptorSets frame_descriptor_sets = create_frame_descriptor_sets(device, descriptor_pool, pipeline_resources.descriptor_set_layout, frame_uniform_buffers, texture.view, sampler);
 
-	auto [gpu_vertex_buffer, gpu_vertex_memory] = create_gpu_buffer<Vertex>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 0, vertices);
-	auto [gpu_index_buffer, gpu_index_memory] = create_gpu_buffer<uint16_t>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 0, indices);
+	// Create buffers:
+
+	auto [gpu_vertex_buffer, gpu_vertex_memory] = create_gpu_buffer<Vertex>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 0, mesh.vertices);
+	auto [gpu_index_buffer, gpu_index_memory] = create_gpu_buffer<uint32_t>(device, physical_device, command_pool, queue_by_feature[FEATURE_GRAPHICS], VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 0, mesh.indices);
 
 	// game loop:
 
@@ -185,7 +193,7 @@ int main() {
 		vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, sync_objects.image_available_semaphore, VK_NULL_HANDLE, &image_index);
 
 		vkResetCommandBuffer(command_buffer, 0);
-		record_render_commands(pipeline, render_pass, render_targets.framebuffers[static_cast<std::size_t>(image_index)], swapchain_images.extent, frame_descriptor_sets[current_executing_frame], pipeline_resources.pipeline_layout, gpu_vertex_buffer, gpu_index_buffer, indices.size(), command_buffer);
+		record_render_commands(pipeline, render_pass, render_targets.framebuffers[static_cast<std::size_t>(image_index)], swapchain_images.extent, frame_descriptor_sets[current_executing_frame], pipeline_resources.pipeline_layout, gpu_vertex_buffer, gpu_index_buffer, mesh.indices.size(), command_buffer);
 
 		VkSubmitInfo submit_info{};
 		submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

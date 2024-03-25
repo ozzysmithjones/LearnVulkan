@@ -149,6 +149,7 @@
     <ClCompile Include="Framework\descriptor_sets.cpp" />
     <ClCompile Include="Framework\device.cpp" />
     <ClCompile Include="Framework\file.cpp" />
+    <ClCompile Include="Framework\mesh.cpp" />
     <ClCompile Include="Framework\physical_device.cpp" />
     <ClCompile Include="Framework\enum.cpp" />
     <ClCompile Include="Framework\render_pipeline.cpp" />
@@ -172,6 +173,7 @@
     <ClInclude Include="Framework\descriptor_sets.h" />
     <ClInclude Include="Framework\device.h" />
     <ClInclude Include="Framework\file.h" />
+    <ClInclude Include="Framework\mesh.h" />
     <ClInclude Include="Framework\stb_image.h" />
     <ClInclude Include="Framework\texture.h" />
     <ClInclude Include="Framework\tiny_obj_loader.h" />

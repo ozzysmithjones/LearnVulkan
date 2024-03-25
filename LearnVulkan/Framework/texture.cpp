@@ -9,7 +9,7 @@ Texture create_texture(VkDevice device, VkPhysicalDevice physical_device, VkComm
 	Texture texture{};
 
 	int image_width, image_height, image_channels;
-	stbi_uc* pixels = stbi_load("textures/statue.jpg", &image_width, &image_height, &image_channels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load(file_path, &image_width, &image_height, &image_channels, STBI_rgb_alpha);
 	VkDeviceSize image_size = (VkDeviceSize)(image_width * image_height * 4);
 	auto [gpu_image, gpu_image_memory] = create_gpu_image(device, physical_device, command_pool, queue, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, image_width, image_height, { pixels, image_size });
 

@@ -356,7 +356,7 @@ static ColorOutputInfo create_color_output_info() {
 	return color_output_info;
 }
 
-VkPipeline create_render_pipeline(VkDevice device, VkRenderPass render_pass, VkPipelineLayout pipeline_resource_layout, ShaderByStage&& shaders_by_stage, VkExtent2D viewport_extent)
+VkPipeline create_render_pipeline(VkDevice device, VkRenderPass render_pass, VkPipelineLayout pipeline_resource_layout, ShaderByStage& shaders_by_stage, VkExtent2D viewport_extent)
 {
 	VkPipeline pipeline;
 	ShaderStageInfos shader_stage_infos = create_shader_stage_infos(shaders_by_stage);
